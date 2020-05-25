@@ -1,7 +1,7 @@
 import csv
 import re
 import matplotlib.pyplot as plt
-
+import math
 
 class DataSet:
     LengthCsv = 99
@@ -22,12 +22,22 @@ class DataSet:
         self.GroupAvgInterAgreement=0
         self.Headers = []
         self.UserAvgInterAgreement = []
-        self.Selfagreement=[[0 for x in range(5)] for y in range(4)]
-        self.Matrix = [[0 for x in range(4)] for y in range(98)]
-        self.InterAgreement=[[0 for x in range(98)] for y in range(4)]
+        self.Selfagreement=[[0 for x in range(5)] for y in range(self.Groupsize)]
+        self.Matrix = [[0 for x in range(self.Groupsize)] for y in range(98)]
+        self.InterAgreement=[[0 for x in range(98)] for y in range(self.Groupsize)]
         self.libAccuracy = 0
         self.oldLibAccuracy = 0
         self.InterReliability=0
+        self.Scores = []
+        self.OldScores=[]
+        self.OldScoresPercentCorrect = []
+        self.NewScoresPercentCorrect = []
+        self.TValScores=0
+        self.TValDifferences = 0
+        self.libAccuracyAdvanced = 0
+        self.oldLibAccuracyAdvanced = 0
+        self.ScoresAsCategrory=[]
+        self.OldScoresAsCategory=[]
 
 
 
@@ -76,10 +86,14 @@ class DataSet:
         string = self.Tokenize(string)
         for i in string:
             if(i.isalpha()):
-                standard_value += self.getValue(i)
-                # output[i]=self.getValue(i)
-                count+=1
-        return (myvalue+standard_value)/count
+                value = self.getValue(i)
+                standard_value += value
+                if(value!=0):
+                    count+=1
+        if(count ==0):
+            return 0
+        else:
+            return (myvalue+standard_value)/count
 
     def analyzeOLD(self,string):
         standard_value=0
@@ -88,9 +102,31 @@ class DataSet:
         string=self.Tokenize(string)
         for i in string:
             if(i.isalpha()):
-                standard_value += self.getValue(i)
-                count+=1
-        return standard_value/count
+                value = self.getValue(i)
+                standard_value += value
+                if(value!=0):
+                    count+=1
+        if(count ==0):
+            return 0
+        else:
+            return standard_value/count
+
+    def analyzeNEW(self,string):
+        standard_value=0
+        count=0
+        myvalue = 0
+        string = self.Strip(string).lower()
+        for key in self.NGramValues:
+            if key in string:
+                keylen = len(self.Tokenize(key))
+                string = string.replace(key,'')
+                myvalue+=(self.NGramValues[key]*keylen)
+                count+=(1*keylen)
+                # output[key]=(self.NGramValues[key]*keylen)
+        if(count ==0):
+            return 0
+        else:
+            return (myvalue)/count
 
     def createlib(self):
         sum=0
@@ -108,17 +144,19 @@ class DataSet:
                 for row in reader:
                     if start:
                         if(row[i]=="Very Negative"):
-                            sum+=-5
-                            self.Matrix[i-1][count]=-5
+                            sum+=-4
+                            self.Matrix[i-1][count]=-4
                         if(row[i]=="Negative"):
-                            sum+=-2.5
-                            self.Matrix[i-1][count]=-2.5
+                            sum+=-2
+                            self.Matrix[i-1][count]=-2
                         if(row[i]=="Positive"):
-                            sum+=2.5
-                            self.Matrix[i-1][count]=2.5
+                            sum+=2
+                            self.Matrix[i-1][count]=2
                         if(row[i]=="Very Positive"):
-                            sum+=5
-                            self.Matrix[i-1][count]=5
+                            sum+=4
+                            self.Matrix[i-1][count]=4
+                        if(row[i]=="Neutral"):
+                            self.Matrix[i-1][count]=0
                         count+=1
                     else:
                         currstring=self.Strip(row[i]).lower()
@@ -145,16 +183,18 @@ class DataSet:
                     if start:
                         if(row[i]=="Very Negative"):
                             sum+=-5
-                            self.Matrix[i-1][count]= -5
+                            self.Matrix[i-1][count]= -4
                         if(row[i]=="Negative"):
                             sum+=-2.5
-                            self.Matrix[i-1][count]= -2.5
+                            self.Matrix[i-1][count]= -2
                         if(row[i]=="Positive"):
                             sum+=2.5
-                            self.Matrix[i-1][count]=2.5
+                            self.Matrix[i-1][count]=2
                         if(row[i]=="Very Positive"):
                             sum+=5
-                            self.Matrix[i-1][count]=5
+                            self.Matrix[i-1][count]=4
+                        if(row[i]=="Neutral"):
+                            self.Matrix[i-1][count]=0
                         count+=1
                         
                     else:
@@ -210,14 +250,12 @@ class DataSet:
                     useranswer= ((self.Matrix[answer][person]+self.Matrix[answer+1][person])/2)
                     difference = useranswer-(((self.TweetValues.get(self.Headers[dummyanswer])*self.Groupsize)-useranswer)/(self.Groupsize-1))
                     answer+=1
-
-                
                 self.InterAgreement[person][dummyanswer]=1-(abs(difference)/10)
                 dummyanswer+=1
         for person in range(len(self.InterAgreement)):
             sum=0
             count=0
-            for values in range(len(self.InterAgreement[0])):
+            for values in range(47):
                 sum+=self.InterAgreement[person][values]
                 count+=1
             self.UserAvgInterAgreement.append(sum/count)
@@ -228,7 +266,7 @@ class DataSet:
 
     def CalcInterReliability(self):
         answer =0
-        for question in range(len(self.Matrix)):
+        for question in range(self.StartTweets):
             sum = 0
             for score in range(len(self.Matrix[question])):
                 for score2 in range(score+1,len(self.Matrix[question])):    
@@ -236,7 +274,7 @@ class DataSet:
                         sum+=1
             # print(sum/self.Summation(len(self.Matrix[question])))
             answer += sum/self.Summation(len(self.Matrix[question]))     
-        answer = answer/len(self.Matrix)
+        answer = answer/self.StartTweets
         self.InterReliability = answer
 
     def Summation(self,n):
@@ -248,74 +286,156 @@ class DataSet:
 def Test(g1,g2):
     OldScoreCorrectCount=0
     NewScoreCorrectCount=0
+    OldScoreCorrectCountAdvanced=0
+    NewScoreCorrectCountAdvanced=0
+    # print(NewScoreCorrectCount)
     for CurrentTweet in g2.TweetValues.keys() :
         CurrentTweetScore = g2.TweetValues.get(CurrentTweet)
         # print(CurrentTweet)
         NewScore = g1.analyze(CurrentTweet)
         OldScore = g1.analyzeOLD(CurrentTweet)
+        g1.Scores.append(NewScore)
+        g1.OldScores.append(OldScore)
+        g1.NewScoresPercentCorrect.append(1-(abs(NewScore-CurrentTweetScore)/10))
+        g1.OldScoresPercentCorrect.append(1-(abs(OldScore-CurrentTweetScore)/10))
+        g1.ScoresAsCategrory.append(categorize(NewScore))
+        NewScoreCorrectCountAdvanced += analyzeScoreAdvanced(NewScore,CurrentTweetScore)
+        OldScoreCorrectCountAdvanced += analyzeScoreAdvanced(OldScore,CurrentTweetScore)
         NewScoreCorrectCount += analyzeScore(NewScore,CurrentTweetScore)
         OldScoreCorrectCount += analyzeScore(OldScore,CurrentTweetScore)
-    self.libAccuracy = NewScoreCorrectCount/len(g2.TweetValues)*100
-    self.oldLibAccuracy = OldScoreCorrectCount/len(g2.TweetValues)*100
+    # print(NewScoreCorrectCount)
+    # print(OldScoreCorrectCount)
+    g1.libAccuracyAdvanced = NewScoreCorrectCountAdvanced/len(g2.TweetValues)*100
+    g1.oldLibAccuracyAdvanced = OldScoreCorrectCountAdvanced/len(g2.TweetValues)*100
+    g1.libAccuracy = NewScoreCorrectCount/len(g2.TweetValues)*100
+    g1.oldLibAccuracy=OldScoreCorrectCount/len(g2.TweetValues)*100
     
-
-def analyzeScore(Score,TweetScore):
-    if(Score==0 and TweetScore==0):
+def analyzeScoreAdvanced(Score,TweetScore):
+    if((Score<-1 and Score>=-3) and (TweetScore<-1 and TweetScore>=-3)):
         return 1
-    if(Score>0 and TweetScore>0):
+    if((Score>1 and Score<=3) and (TweetScore>1 and TweetScore<=3)):
         return 1
-    if(TweetScore<0 and Score<0):
+    if((TweetScore<=1 and TweetScore >=-1) and (Score<=1 and Score >=-1)):
+        return 1
+    if(TweetScore>3 and Score>3):
+        return 1
+    if(TweetScore<-3 and Score<-3):
         return 1
     else:
         return 0
 
-Group1 = DataSet("ResponseDataG1.csv",4)
+def categorize(Score):
+    if(Score<-1 and Score>=-3):
+        return "Negative"
+    if(Score>1 and Score<=3):
+        return "Positive"
+    if(Score<=1 and Score >=-1):
+        return "Neutral"
+    if(Score>3):
+        return "Very Positive"
+    if(Score<-3):
+        return "Very Negative"
+    
+
+def analyzeScore(Score,TweetScore):
+    if((Score<=1 and Score>=-1) and (TweetScore<=1 and TweetScore>=-1)):
+        return 1
+    if(Score>1 and TweetScore>1):
+        return 1
+    if(TweetScore<-1 and Score<-1):
+        return 1
+    else:
+        return 0
+               
+def Ttest(g1scores,g2scores):
+    g1Sum = getSum(g1scores)
+    g2Sum = getSum(g2scores)
+    # print(g1Sum)
+    g1SquaredSum = g1Sum*g1Sum
+    g2SquaredSum = g2Sum*g2Sum
+    # print(g1SquaredSum)
+    g1Mean = g1Sum/len(g1scores)
+    g2Mean = g2Sum/len(g2scores)
+    # print(g1Mean)
+    g1SumofSquares = sumofsquares(g1scores)
+    g2SumofSquares = sumofsquares(g2scores)
+    # print(g1SumofSquares)
+    T = (g1Mean-g2Mean)/math.sqrt((((g1SumofSquares-(g1SquaredSum/len(g1scores)))+(g2SumofSquares-(g2SquaredSum/len(g2scores))))/(len(g1scores)+len(g2scores)-2))*(1/len(g1scores)+1/len(g2scores)))   
+    return T
+    
+def getSum(array):
+    sum=0
+    for score in array:
+        sum+=score
+    return sum
+
+def sumofsquares(array):
+    sum=0
+    for score in array:
+        sum+=(score*score)
+    return sum
+
+Group1 = DataSet("ResponseDataG1.csv",5)
 Group1.createlib()
 
 Group2 = DataSet("ResponseDataG2.csv",4)
 Group2.createlib()
 
-# while(1):
-#     compareortest = input("Compare Libraries or test one, type both or one")
-#     if(compareortest=="both"):
-#         while(1):
-#             graph = input("Pick an x axis Self-Agreement: SA, Inter-Agreement: IA, or InterReliability: IR, or . to go back")
-#             if(graph=="."):
-#                 break
-#             if(graph=="SA"):
-#                 plt.
-#             # if(graph=="IA"):
-            
-#             # if(graph=="IR"):
+print("Testing Group1 Library on Group2 Tweets")
+Test(Group1,Group2)
+print("Testing Group2 Library on Group1 Tweets")
+Test(Group2,Group1)
 
-#     if(compareortest=="one"):
-#         while(1):
-#             library = input("Pick a library to test G1 or G2 or . to go back: ")
-#             if(input=="."):
-#                 break
-#             else:
-#                 while(1):
-#                     command = input("Pick a following ")
+Group1.TValScores=Ttest(Group1.Scores,Group1.OldScores)
+Group2.TValScores=Ttest(Group2.Scores,Group2.OldScores)
+Group1.TValDifferences = Ttest(Group1.NewScoresPercentCorrect,Group1.OldScoresPercentCorrect)
+Group2.TValDifferences = Ttest(Group2.NewScoresPercentCorrect,Group2.OldScoresPercentCorrect)
 
-    
-    # testtype = input("Pick a ")
-# print("Headers")
-# print(Group1.Headers)
-# print("Matrix")
-# print(Group1.Matrix)
-# print("Ngram dictionary")
-# print(Group1.NGramValues)
-# print("Tweet Dictionary")
-# print(Group1.TweetValues)
-# print("Self Agreements")
-#  print(Group1.Selfagreement)
-# print("Avg Self Agreements")
-# print(Group1.UserAvgSelfAgreement)
-# print(Group1.GroupAvgSelfAgreement)
-# print("Interagreements")
+plt.plot([Group1.libAccuracy,Group2.libAccuracy],[Group1.InterReliability,Group2.InterReliability],label='Inter-Reliability',marker='o')
+plt.plot([Group1.libAccuracy,Group2.libAccuracy],[Group1.GroupAvgSelfAgreement,Group2.GroupAvgSelfAgreement],label='Self-Agreement',marker='o')
+plt.plot([Group1.libAccuracy,Group2.libAccuracy],[Group1.GroupAvgInterAgreement,Group2.GroupAvgInterAgreement],label='Inter-Agreement',marker='o')
+plt.xlabel("Library Accuracy")
+plt.title("Accuracy vs Inter-Reliability, Self-Agreement, and Inter-Agreement")
+plt.legend()
+plt.show()
+
+print(Group1.TweetValues)
+
+print("Avg Self Agreements")
+print(Group1.GroupAvgSelfAgreement)
+print(Group2.GroupAvgSelfAgreement)
+
+print("Avg Interagreements")
 print(Group1.GroupAvgInterAgreement)
-# print("Avg Interagreements")
-# print(Group1.UserAvgInterAgreement)
-# print(Group1.GroupAvgInterAgreement)
-# print(Group1.Summation(4))
+print(Group2.GroupAvgInterAgreement)
+
+print("Group Inter Reliability")
 print(Group1.InterReliability)
+print(Group2.InterReliability)
+
+print("Group accuracy")
+print(Group1.libAccuracy)
+print(Group2.libAccuracy)
+
+print("Old Library Accurracy on Group2 Tweets and on Group1 Tweets")
+print(Group1.oldLibAccuracy)
+print(Group2.oldLibAccuracy)
+
+print("Group accuracy Advanced")
+print(Group1.libAccuracyAdvanced)
+print(Group2.libAccuracyAdvanced)
+
+print("Old Library Accurracy on Group2 Tweets and on Group1 Tweets (Advanced)")
+print(Group1.oldLibAccuracyAdvanced)
+print(Group2.oldLibAccuracyAdvanced)
+
+print(len(Group1.NewScoresPercentCorrect)+len(Group1.OldScoresPercentCorrect)-2)
+print("T vals for accuracy")
+print(Group1.TValDifferences)
+print(Group2.TValDifferences)
+
+print(Group1.analyze("sorry i'm trash"))
+print(Group1.analyze("sorry"))
+print(Group1.analyze("i'm"))
+print(Group1.analyze("trash"))
+print(Group1.analyzeOLD("trash"))
